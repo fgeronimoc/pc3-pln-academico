@@ -144,13 +144,33 @@ def topic_modeling_lda(texto_limpio, n_topics=4, n_palabras=8):
         return pd.DataFrame({"Tema": ["Sin resultados"], "Palabras clave": ["Texto insuficiente"]})
 
 
+# ── AQUÍ ESTÁ LA FUNCIÓN CORREGIDA PARA EXTRAER LAS SECCIONES BIEN ──
 def extraer_seccion(texto, inicio, finales):
-    """Extrae una sección del documento usando expresiones regulares."""
-    patron = rf'(?:{inicio})\s*(.*?)(?:{"  |  ".join(finales)})'
-    resultado = re.search(patron, texto, flags=re.IGNORECASE | re.DOTALL)
-    if resultado:
-        return resultado.group(1).strip()
+    """Extrae una sección del documento usando expresiones regulares de forma robusta."""
+    patron_finales = "|".join(finales)
+    
+    # Permite espacios, puntos o dos puntos después del título
+    patron = rf'(?:{inicio})[\s\.\:]*(.*?)(?:{patron_finales})'
+    
+    # Usamos finditer para buscar en todo el documento y esquivar el índice
+    coincidencias = re.finditer(patron, texto, flags=re.IGNORECASE | re.DOTALL)
+    
+    mejor_coincidencia = "No encontrado"
+    max_len = 0
+    
+    # Nos quedamos con la coincidencia más larga (el texto real de la sección)
+    for match in coincidencias:
+        contenido = match.group(1).strip()
+        if len(contenido) > max_len:
+            max_len = len(contenido)
+            mejor_coincidencia = contenido
+            
+    # Retornamos solo si la sección capturada tiene un tamaño lógico
+    if max_len > 50: 
+        return mejor_coincidencia
+        
     return "No encontrado"
+# ──────────────────────────────────────────────────────────────────────
 
 
 def extraer_anios(texto):
@@ -245,7 +265,7 @@ if archivo_pdf is not None:
         # ── LDA ──
         df_temas = topic_modeling_lda(texto_limpio, n_topics=4)
 
-        # ── Secciones ──
+        # ── Secciones (Ahora usando la función mejorada) ──
         resumen      = extraer_seccion(texto_documento, r"\bResumen\b",
                                        [r"\bPalabras clave\b", r"\bAbstract\b", r"\bIntroducción\b"])
         abstract     = extraer_seccion(texto_documento, r"\bAbstract\b",
@@ -260,11 +280,11 @@ if archivo_pdf is not None:
                                        [r"\bReferencias\b", r"\bBibliografía\b"])
 
         # ── Metadatos adicionales ──
-        anios     = extraer_anios(texto_documento)
-        software  = extraer_software(texto_documento)
-        metodos   = extraer_metodos(texto_documento)
-        autores   = df_entidades[df_entidades["Tipo"] == "PER"]["Entidad"].drop_duplicates().tolist() if not df_entidades.empty else []
-        orgs      = df_entidades[df_entidades["Tipo"] == "ORG"]["Entidad"].drop_duplicates().tolist() if not df_entidades.empty else []
+        anios      = extraer_anios(texto_documento)
+        software   = extraer_software(texto_documento)
+        metodos    = extraer_metodos(texto_documento)
+        autores    = df_entidades[df_entidades["Tipo"] == "PER"]["Entidad"].drop_duplicates().tolist() if not df_entidades.empty else []
+        orgs       = df_entidades[df_entidades["Tipo"] == "ORG"]["Entidad"].drop_duplicates().tolist() if not df_entidades.empty else []
 
     st.success(f"✅ Documento procesado: **{len(texto_documento):,} caracteres** extraídos.")
 
